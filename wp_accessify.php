@@ -34,8 +34,17 @@ define('WP_ACCESSIFY_REGISTER_FILE',
 ));
 
 
+ini_set( 'display_errors', 1 );
+error_reporting( E_ALL );
 
-class Wp_Accessify_Plugin {
+
+#if( is_admin() ) {
+  require_once 'php/accessify_options_page.php';
+  #$wp_accessify_opts = new Wp_Accessify_Options_Page();
+#}
+
+
+class Wp_Accessify_Plugin extends Accessify_Options_Page {
 
   const API_URL  = '//accessifywiki.appspot.com/';  //No "http:"
   const WIKI_URL = 'http://accessify.wikia.com/wiki/WordPress';
@@ -51,6 +60,7 @@ class Wp_Accessify_Plugin {
 
 
   public function __construct() {
+    parent::__construct();
 
     $this->setup_plugin_config();
 
@@ -72,20 +82,25 @@ class Wp_Accessify_Plugin {
       add_action('wp_footer', array(&$this, 'footer_scripts'), 1000);
       add_action('admin_footer', array(&$this, 'footer_scripts'), 1000);
     }
+
+    /*if( is_admin() ) {
+      require_once 'options.php';
+      $wp_options_page = new Wp_Accessify_Options_Page();  #MySettingsPage();
+    }*/
   }
 
 
   protected function setup_plugin_config() {
     // Get the site ID configured in the database.
-    $this->site_id   = get_option(self::DB_PREFIX . 'site_id');
-    $this->mode_cache= get_option(self::DB_PREFIX . 'mode_cache', $def=FALSE);
+    $this->site_id   = $this->get_option( 'site_id' );
+    $this->mode_cache= $this->get_option( 'mode_cache', $default = FALSE );
 
-    if (defined(strtoupper(self::DB_PREFIX . 'site_id'))) {
+    if (!$this->site_id && defined(strtoupper(self::DB_PREFIX . 'site_id'))) {
       $this->site_id = constant(strtoupper(self::DB_PREFIX . 'site_id'));
     }
 
     // DEBUG: Safely output our configuration in a HTTP header.
-    if (isset($_GET['debug'])) {
+    if ($this->is_debug()) {
       header('X-Accessify-Wiki: '. json_encode(array(
         'site_id' => $this->site_id,
         'fix_url' => $this->fix_url(),
@@ -95,6 +110,9 @@ class Wp_Accessify_Plugin {
     }
   }
 
+  protected function is_debug() {
+    return isset($_GET['debug']) || (defined('WP_DEBUG') && constant('WP_DEBUG'));
+  }
 
   public function admin_error_notice() {
     ?>
