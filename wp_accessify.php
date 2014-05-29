@@ -38,10 +38,7 @@ ini_set( 'display_errors', 1 );
 error_reporting( E_ALL );
 
 
-#if( is_admin() ) {
-  require_once 'php/accessify_options_page.php';
-  #$wp_accessify_opts = new Wp_Accessify_Options_Page();
-#}
+require_once 'php/accessify_options_page.php';
 
 
 class Wp_Accessify_Plugin extends Accessify_Options_Page {
@@ -57,6 +54,7 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
 
   protected $site_id = '';
   protected $mode_cache = FALSE;
+  protected $exclude_users;
 
 
   public function __construct() {
@@ -73,7 +71,18 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     add_filter('body_class', array(&$this, 'body_class'));
     add_filter('admin_body_class', array(&$this, 'body_class'));
 
-    $this->mode_cache = $this->mode_cache && file_exists(__DIR__ . self::CACHE_JS);
+    ///$this->mode_cache = $this->mode_cache && file_exists(__DIR__ . self::CACHE_JS);
+
+    $user_id = get_current_user_id();
+    if (in_array( $user_id, $this->exclude_users )) {
+      $this->debug( "user excluded; user_id=$user_id" );
+      return;
+    }
+
+    if ($this->is_debug()) {
+      add_action('wp_head', array(&$this, 'head_scripts'));
+      add_action('admin_head', array(&$this, 'head_scripts'));
+    }
 
     if ($this->mode_cache) {
       add_action('wp_enqueue_scripts', array(&$this, 'enqueue_scripts'));
@@ -82,37 +91,31 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
       add_action('wp_footer', array(&$this, 'footer_scripts'), 1000);
       add_action('admin_footer', array(&$this, 'footer_scripts'), 1000);
     }
-
-    /*if( is_admin() ) {
-      require_once 'options.php';
-      $wp_options_page = new Wp_Accessify_Options_Page();  #MySettingsPage();
-    }*/
   }
 
 
   protected function setup_plugin_config() {
     // Get the site ID configured in the database.
-    $this->site_id   = $this->get_option( 'site_id' );
-    $this->mode_cache= $this->get_option( 'mode_cache', $default = FALSE );
+    $this->site_id   = $this->get_option( self::OP_SID );
+    $this->mode_cache= (bool) $this->get_option( self::OP_CACHE );
+    $this->exclude_users = $this->get_split( self::OP_EXC_USER );
 
     if (!$this->site_id && defined(strtoupper(self::DB_PREFIX . 'site_id'))) {
       $this->site_id = constant(strtoupper(self::DB_PREFIX . 'site_id'));
     }
 
     // DEBUG: Safely output our configuration in a HTTP header.
-    if ($this->is_debug()) {
-      header('X-Accessify-Wiki: '. json_encode(array(
-        'site_id' => $this->site_id,
+    $this->debug(array(
+        self::OP_SID => $this->site_id,
         'fix_url' => $this->fix_url(),
         'mode_cache' => $this->mode_cache,
+        'exclude_users' => $this->exclude_users,
         'app' => self::APP_ID,
-      )));
-    }
+        'user_id' => get_current_user_id(),
+        'is_debug' => $this->is_debug(),
+    ));
   }
 
-  protected function is_debug() {
-    return isset($_GET['debug']) || (defined('WP_DEBUG') && constant('WP_DEBUG'));
-  }
 
   public function admin_error_notice() {
     ?>
@@ -142,6 +145,11 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     ), array(), false, $in_footer = TRUE);
   }
 
+  public function head_scripts() {
+    ?>
+    <script> AC5U = { debug: true }; </script><?php
+  }
+
   public function footer_scripts() {
     ?>
     <script src="<?php echo $this->lib_url() ?>" id="accessify-js"></script>
@@ -169,15 +177,18 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
   protected function print_glue_javascript() {
     ?>
 
+  AC5U = window.AC5U || {};
+
   function __accessify_IPG(fixes) {
     "use strict";
 
     var res,
       pat = /debug/,
-      L = document.location;
+      L = document.location,
+      debug = AC5U.debug || L.search.match(pat) || L.hash.match(pat);
 
     function log(s) {
-      if (typeof console !== "undefined" && (L.search.match(pat) || L.hash.match(pat))) {
+      if (typeof console !== "undefined" && debug) {
         console.log(arguments.length > 1 ? arguments : s);
       }
     }
