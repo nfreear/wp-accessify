@@ -18,6 +18,8 @@ class Accessify_Options_Page {
     const OP_CACHE = 'mode_cache';
     const OP_EXC_USER = 'exclude_users';
 
+    const GUEST = -1;
+
     /** Holds the values to be used in the fields callbacks
      */
     private $options;
@@ -169,7 +171,7 @@ class Accessify_Options_Page {
     /** Get the settings option array and print one of its values
      */
     public function mode_cache_callback() {
-        $b_cache = isset($this->options[self::OP_CACHE]) ? $this->options[self::OP_CACHE] : null;
+        $b_cache = $this->get_option( self::OP_CACHE );
         $cache_input = '<label><input type="radio" name="wp_accessify_opt[mode_cache]" ';
         printf(
             '<div class="row_mode_cache"> '.
@@ -184,9 +186,8 @@ class Accessify_Options_Page {
     public function exclude_users_callback() {
         printf(
             '<input id="'. self::OP_EXC_USER .'" name="wp_accessify_opt[exclude_users]" '.
-            'value="%s" placeholder="1, 3, 6" pattern="\d+([;,\s]+\d+)*" />',
-            isset( $this->options[self::OP_EXC_USER] )
-                ? esc_attr( $this->options[self::OP_EXC_USER]) : ''
+            'value="%s" placeholder="1, 3, 6" pattern="\-?\d+([;,\s]+\-?\d+)*" />',
+            $this->get_option( self::OP_EXC_USER )
         );
     }
 
@@ -212,8 +213,10 @@ class Accessify_Options_Page {
         return $default;
     }
 
-    protected function get_split( $key = NULL ) {
-        return preg_split( '/[;,\s]+/', $this->get_option( $key )); #, PREG_SPLIT_NO_EMPTY );
+    protected function split_option( $key, $default = array() ) {
+        $value = trim($this->get_option( $key ));
+        if ('' == $value) return $default;
+        return preg_split( '/[;,\s]+/', $value); #, PREG_SPLIT_NO_EMPTY );
     }
 
     /** DEBUG: Safely output our configuration in a HTTP header.
