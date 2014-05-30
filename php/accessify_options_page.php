@@ -26,6 +26,7 @@ class Accessify_Options_Page {
 
     protected $messages = array();
 
+
     /** Start up
      */
     public function __construct() {
@@ -67,11 +68,9 @@ class Accessify_Options_Page {
         <div class="wrap">
             <?php screen_icon(); ?>
             <h2>Accessify Wiki Settings<!--My Settings--></h2>           
-            <style>
-            .row_mode_cache label { display:inline-block; margin:0 3em 0 0; }
-            label i { font-size: small; }
-            #acfy-fm .req:after { color: red; content: " *required"; font-size:small; }
-            </style>
+
+            <?php $this->print_form_style() ?>
+
             <form id="acfy-fm" method="post" action="options.php">
             <?php
                 // This prints out all hidden setting fields
@@ -99,15 +98,15 @@ class Accessify_Options_Page {
             self::SECTION,  #'setting_section_id', // ID
             'My Custom Settings', // Title
             array( $this, 'print_section_info' ), // Callback
-            self::MENU_SLUG  #'my-setting-admin' // Page
+            self::MENU_SLUG   // Page
         );
 
         $this->add_settings_field(
             self::OP_SID,
-            'Site ID', # 'Title'
+            'Site ID',
             array( $this, 'site_id_callback' ), 
-            self::MENU_SLUG,  #'my-setting-admin', 
-            self::SECTION,  #'setting_section_id'
+            self::MENU_SLUG,
+            self::SECTION,
             array(), $required = TRUE
         );
 
@@ -121,7 +120,7 @@ class Accessify_Options_Page {
 
         $this->add_settings_field(
             self::OP_EXC_USER, // ID
-            'Exclude user IDs?', // Title
+            sprintf('Exclude user IDs? <i>(Use %s to exclude guests)</i>', self::GUEST),
             array( $this, 'exclude_users_callback' ), // Callback
             self::MENU_SLUG,  // Page
             self::SECTION    // Section
@@ -135,8 +134,6 @@ class Accessify_Options_Page {
     public function sanitize( $input )
     {
         $new_input = array();
-        #if( isset( $input['id_number'] ) )
-        #    $new_input['id_number'] = absint( $input['id_number'] );
 
         if (isset( $input[self::OP_SID] )) {
             $new_input[self::OP_SID] = sanitize_text_field( $input[self::OP_SID] );
@@ -153,19 +150,23 @@ class Accessify_Options_Page {
     /** 
      * Print the Section text
      */
-    public function print_section_info()
-    {
-        print 'Required settings are marked with a <span class=req >red asterisk</span> below:';
+    public function print_section_info() {
+        print 'Required settings are marked with a <span class=req >red asterisk</span> below.';
     }
 
     /** Get the settings option array and print one of its values
      */
     public function site_id_callback() {
+        $site_id = $this->get_option( self::OP_SID );
         printf(
             '<input id="'. self::OP_SID .'" name="wp_accessify_opt[site_id]" value="%s" '. 
-            'placeholder="Fix:Example" pattern="Fix:\w+" required aria-required="true" />',
-            isset($this->options[self::OP_SID]) ? esc_attr($this->options[self::OP_SID]) : ''
+            'placeholder="Fix:Example" pattern="Fix:\w+" required aria-required="true" /> ',
+            esc_attr( $site_id )
         );
+        $site_id ? printf(
+            '<a class=v href="%s">View</a> | <a href="%s">Build</a>',
+            $this->wiki_page( $site_id ), $this->wiki_build_page( $site_id )
+        ) : null;
     }
 
     /** Get the settings option array and print one of its values
@@ -203,6 +204,18 @@ class Accessify_Options_Page {
             "<label for='$id' $req>$title</label>", $callback, $page, $section, $args );
     }
 
+    protected function print_form_style() {
+        ?>
+    <style>
+        .row_mode_cache label { display:inline-block; margin:0 3em 0 0; }
+        label i { font-size: small; display: block; }
+        .row_mode_cache label i { display: inline-block; }
+        #acfy-fm .req:after { color: red; content: " *required"; font-size:small; }
+    </style>
+<?php
+    }
+
+
     /** Utilities
     */
     protected function get_option( $key = NULL, $default = NULL ) {
@@ -219,13 +232,23 @@ class Accessify_Options_Page {
         return preg_split( '/[;,\s]+/', $value); #, PREG_SPLIT_NO_EMPTY );
     }
 
+
+    protected function wiki_page( $page = NULL ) {
+        return $this->client->wiki_url( $page );
+    }
+
+    protected function wiki_build_page( $site_id ) {
+        return $this->wiki_url( 'Build_fix_js?q=' . $site_id );
+    }
+
+
     /** DEBUG: Safely output our configuration in a HTTP header.
     */
     protected function is_debug() {
         return isset($_GET['debug']) || (defined('WP_DEBUG') && constant('WP_DEBUG'));
     }
-    protected function debug( $text ) {
-        return $this->message( $text, 'debug' );
+    protected function debug( $object ) {
+        return $this->message( $object, 'debug' );
     }
     protected function error( $text ) {
         return $this->message( $text, 'error' );

@@ -37,19 +37,17 @@ define('WP_ACCESSIFY_REGISTER_FILE',
 ini_set( 'display_errors', 1 );
 error_reporting( E_ALL );
 
-
+require_once 'accessify-client-php/accessify_client_php.php';
 require_once 'php/accessify_options_page.php';
+
 
 
 class Wp_Accessify_Plugin extends Accessify_Options_Page {
 
-  const API_URL  = '//accessifywiki.appspot.com/';  //No "http:"
-  const WIKI_URL = 'http://accessify.wikia.com/wiki/WordPress';
   const DB_PREFIX= '_accessify_wiki_';
   const CACHE_JS = 'cache/accessify-site-fixes.js';
   const LOC_DOMAIN = 'wp-accessify';
   const APP_ID   = 'wp-accessify';
-  const FIX_OPT  = '&min=1&callback=__accessify_IPG&app=';
 
 
   protected $site_id = '';
@@ -57,13 +55,19 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
   protected $exclude_users;
   protected $do_exclude = FALSE;
 
+  protected $client;
+
 
   public function __construct() {
     parent::__construct();
 
     $this->setup_plugin_config();
 
-    if (!$this->is_valid_site_id($this->site_id)) {
+
+    $this->client = new Accessify_Client_Php($this->site_id, self::APP_ID);
+
+
+    if (!$this->client->is_valid_site_id($this->site_id)) {
       // Error?
       add_action('admin_notices', array(&$this, 'admin_error_notice'));
       return;
@@ -120,7 +124,7 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     // DEBUG: Safely output our configuration in a HTTP header.
     $this->debug(array(
         self::OP_SID => $this->site_id,
-        'fix_url' => $this->fix_url(),
+        'fix_url' => $this->client->fix_url(),
         'mode_cache' => $this->mode_cache,
         'exclude_users' => $this->exclude_users,
         'app' => self::APP_ID,
@@ -129,14 +133,16 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     ));
   }
 
+  /** WP action. */
   public function admin_error_notice() {
     ?>
     <div class=error ><p><?php echo sprintf( __(
       'WP Accessify Wiki warning: The site ID is invalid or not configured – <a %s>Plugin help</a>.',
-      self::LOC_DOMAIN), 'href="'. self::WIKI_URL .'"' ) ?></div>
+      self::LOC_DOMAIN), 'href="'. $this->client->wiki_url() .'"' ) ?></div>
     <?php
   }
 
+  /** WP action. */
   public function body_class( $classes ) {
     return $classes;
 
@@ -151,6 +157,7 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     return $classes;
   }
 
+  /** WP action. */
   public function enqueue_scripts() {
     if ($this->do_exclude) return;
 
@@ -159,74 +166,18 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     ), array(), false, $in_footer = TRUE);
   }
 
+  /** WP action. */
   public function head_scripts() {
     if ($this->do_exclude) return;
 
-    ?><script>AC5U = { debug: true }</script>
-<?php
+    $this->client->debug_config_scripts();
   }
 
+  /** WP action. */
   public function footer_scripts() {
     if ($this->do_exclude) return;
-    ?>
-    <script src="<?php echo $this->lib_url() ?>" id="accessify-js"></script>
-    <script><?php $this->print_glue_javascript() ?></script>
-    <script src="<?php echo $this->fix_url() ?>"></script>
-<?php
-  }
 
-
-  /** Utilities.
-  */
-
-  protected function is_valid_site_id($site_id) {
-    return $site_id && preg_match('/^Fix:[\w\_]+$/', $site_id);
-  } 
-
-  protected function lib_url() {
-    return self::API_URL .'browser/js/accessifyhtml5.js';
-  }
-
-  protected function fix_url() {
-    return self::API_URL .'fix?q='. $this->site_id . self::FIX_OPT . self::APP_ID;
-  }
-
-  /**
-  * @link http://accessify.wikia.com/wiki/Build_fix_js?q=Fix:Example_fixes
-  */
-  protected function print_glue_javascript() {
-    ?>
-
-  AC5U = window.AC5U || {};
-
-  function __accessify_IPG(fixes) {
-    "use strict";
-
-    var G = AC5U,
-      L = document.location,
-      pat = /debug/,
-      debug = G.debug || L.search.match(pat) || L.hash.match(pat);
-
-    function log(s) {
-      window.console && debug &&
-        console.log(arguments.length > 1 ? arguments : s);
-    }
-
-    if (G.result) {
-      return log("AccessifyHTML5: already run");
-    }
-
-    log("AccessifyHTML5: run");
-
-    G.result = AccessifyHTML5(false, fixes);
-
-    log(G.result);
-  }
-<?php
-  }
-
-  protected function build_cache_fix_javascript() {
-    // TODO: Implement cached fix JS.
+    $this->client->print_fix_test_scripts();
   }
 
 }
