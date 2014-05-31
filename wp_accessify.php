@@ -85,13 +85,15 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
       add_action('admin_head', array(&$this, 'head_scripts'));
     }
 
-    if ($this->mode_cache) {
+    /*if ($this->mode_cache) {
       add_action('wp_enqueue_scripts', array(&$this, 'enqueue_scripts'));
       add_action('admin_enqueue_scripts', array(&$this, 'enqueue_scripts'));
-    } else {
+    } else {*/
       add_action('wp_footer', array(&$this, 'footer_scripts'), 1000);
       add_action('admin_footer', array(&$this, 'footer_scripts'), 1000);
-    }
+    //}
+
+    add_action( 'wp_ajax_accessify_build_fixes', array( &$this, 'ajax_build_fixes' ));
   }
 
 
@@ -124,7 +126,7 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     // DEBUG: Safely output our configuration in a HTTP header.
     $this->debug(array(
         self::OP_SID => $this->site_id,
-        'fix_url' => $this->client->fix_url(),
+        'fix_url' => $this->client->jsonp_fix_url(),
         'mode_cache' => $this->mode_cache,
         'exclude_users' => $this->exclude_users,
         'app' => self::APP_ID,
@@ -138,7 +140,7 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
     ?>
     <div class=error ><p><?php echo sprintf( __(
       'WP Accessify Wiki warning: The site ID is invalid or not configured – <a %s>Plugin help</a>.',
-      self::LOC_DOMAIN), 'href="'. $this->client->wiki_url() .'"' ) ?></div>
+      self::LOC_DOMAIN), 'href="'. $this->wiki_page() .'"' ) ?></div>
     <?php
   }
 
@@ -177,7 +179,72 @@ class Wp_Accessify_Plugin extends Accessify_Options_Page {
   public function footer_scripts() {
     if ($this->do_exclude) return;
 
-    $this->client->print_fix_test_scripts();
+    if ($this->mode_cache) {
+      $body = get_option( self::DB_PREFIX . 'fixes' );
+      if (isset($body->compiledCode)):
+        ?>
+    <script id="accessify-js-cache"><?php echo $body->compiledCode ?></script>
+    <?php
+      endif;
+    } else {
+      $this->client->print_fix_test_scripts();
+    }
+  }
+
+
+  /** WP action - AJAX.
+  */
+  public function ajax_build_fixes() {
+    $action  = $this->_param( 'action' );
+    $site_id = $this->_param( 'site_id', $this->site_id );
+    //$compilation_level = $this->_param( 'compilation_level' );
+
+    $response = wp_remote_post( $this->client->compiler_url(), array(
+        'method'  => 'POST',
+        'timeout' => 45,
+        'redirection' => 2, //5,
+        'httpversion' => '1.1',
+        'blocking' => true,
+        'headers' => array(),
+        'body' => $this->client->compiler_query_params( $site_id ),
+    ));
+
+    if ( is_wp_error( $response ) ) {
+      $result = array(
+        'stat' => 'fail',
+        'action'  => $action,
+        'site_id' => $site_id,
+        'response' => $response,
+        'html' => '<p class="error"> Closure Compiler Error - build fixes.'.
+            '<p class="error"> ' . $response->get_error_message(),
+      );
+    } else {
+      $body = json_decode($response[ 'body' ]);
+      $body->site_id = $site_id;
+      $body->time = date( 'c' );
+
+      $b_success = !isset($body->serverErrors) OR count($body->serverErrors) <= 0;
+      if ($b_success) {
+        $output_file_path = $body->outputFilePath;
+        $statistics = $body->statistics;
+      }
+
+      $update_ok = update_option( self::DB_PREFIX . 'fixes', $body );
+
+      $result = array(
+        'stat' => $b_success ? 'ok' : 'fail',
+        'action'  => $action,
+        'site_id' => $site_id,
+        'update_option' => $update_ok,
+        'response' => $response,
+        'html' => $b_success ? '<p class="ok"> Closure Compiler Success - build fixes.'
+            : '<p class="error"> Closure Compiler Error - build fixes [2].',
+      );
+    }
+
+    @header( 'Content-Type: application/json; charset=utf-8' );
+    echo json_encode( $result );
+    exit;
   }
 
 }

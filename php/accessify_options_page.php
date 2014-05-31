@@ -76,15 +76,69 @@ class Accessify_Options_Page {
                 // This prints out all hidden setting fields
                 settings_fields( self::OPTION_GROUP );
                 do_settings_sections( self::MENU_SLUG );
-                submit_button(); 
+                submit_button();
+
+                $this->compiler_ajax_script();
             ?>
             </form>
         </div>
         <?php
     }
 
-    /**
-     * WP Action - Register and add settings
+
+    protected function compiler_ajax_script() {
+        ?>
+    <p><button id=acfy-build-btn class="button button-primary" type=button >Build</button>
+    <pre id=acfy-build-log ></pre>
+    <script>
+jQuery(function ($) {
+  var
+    ajax_url = "<?php echo admin_url( 'admin-ajax.php' ) ?>",
+    build_action  = 'accessify_build_fixes',
+    site_id = $('#side_id').val(),
+    $log_el  = $('#acfy-build-log'),
+    $btn = $('#acfy-build-btn');
+
+
+  $btn.on('click', function (ev) {
+    ev.preventDefault();
+
+    $.ajax({
+      type: 'POST',
+      url:  ajax_url,
+      data: {
+        action: build_action,
+        //json: JSON.stringify(data)
+        site_id: site_id
+      },
+      dataType: 'json',
+      async:   false // for Safari
+    })
+    .done(function (data, stat, jqXHR) {
+      $log_el.html(data.html);
+
+      log(">> Ajax success! POST", action);
+      log(data);
+    })
+    .fail(function () {
+      log(">> Ajax failed", action);
+    })
+    .always( /*loading_end*/ );
+
+  });
+
+
+  function log(s) {
+    console.log(arguments);
+  }
+
+});    
+    </script>
+
+  <?php
+    }
+
+    /** WP Action - Register and add settings
      */
     public function page_init()
     {        
@@ -238,7 +292,7 @@ class Accessify_Options_Page {
     }
 
     protected function wiki_build_page( $site_id ) {
-        return $this->wiki_url( 'Build_fix_js?q=' . $site_id );
+        return $this->wiki_page( 'Build_fix_js?q=' . $site_id );
     }
 
 
@@ -258,6 +312,10 @@ class Accessify_Options_Page {
         $this->messages[] = $message_r;
         @header('X-Wp-Accessify-Msg-'.
             sprintf('%02d', count($this->messages)) .': '. json_encode( $message_r ));
+    }
+
+    protected function _param( $key, $default = NULL ) {
+        return isset($_REQUEST[ $key ]) ? $_REQUEST[ $key ] : $default;
     }
 }
 
