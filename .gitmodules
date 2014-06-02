@@ -1,0 +1,3 @@
+[submodule "accessify-client-php"]
+	path = accessify-client-php
+	url = https://github.com/nfreear/accessify-client-php.git
