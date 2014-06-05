@@ -71,7 +71,7 @@ class Accessify_Options_Page {
 
             <?php $this->print_form_style() ?>
 
-            <form id="acfy-fm" method="post" action="options.php">
+            <form id="acfy-form" method="post" action="options.php">
             <?php
                 // This prints out all hidden setting fields
                 settings_fields( self::OPTION_GROUP );
@@ -88,7 +88,7 @@ class Accessify_Options_Page {
 
     protected function compiler_ajax_script() {
         ?>
-    <p><button id=acfy-build-btn class="button button-primary" type=button >Build</button>
+    <p><button id=acfy-build-btn class="button button-primary" type=button >Build fixes</button>
     <pre id=acfy-build-log ></pre>
     <script>
 jQuery(function ($) {
@@ -218,7 +218,7 @@ jQuery(function ($) {
             esc_attr( $site_id )
         );
         $site_id ? printf(
-            '<a class=v href="%s">View</a> | <a href="%s">Build</a>',
+            '<a class=vw href="%s">View</a> | <a class=bd href="%s">(Build)</a>',
             $this->wiki_page( $site_id ), $this->wiki_build_page( $site_id )
         ) : null;
     }
@@ -239,11 +239,23 @@ jQuery(function ($) {
     /**  Get the settings option array and print one of its values
      */
     public function exclude_users_callback() {
+        $exc_users = $this->get_option( self::OP_EXC_USER );
         printf(
             '<input id="'. self::OP_EXC_USER .'" name="wp_accessify_opt[exclude_users]" '.
             'value="%s" placeholder="1, 3, 6" pattern="\-?\d+([;,\s]+\-?\d+)*" />',
-            $this->get_option( self::OP_EXC_USER )
+            $exc_users
         );
+        if (!$exc_users) return;
+
+        $exc_users = $this->split_option( self::OP_EXC_USER );
+
+        $users = get_users(array( 'include' => $exc_users )); #, 'fields' => 'user_login' ));
+        foreach ($users as $user) {
+            echo " <i title='User ID: $user->ID'>$user->user_login (ID: $user->ID)</i>, ";
+        }
+        if (count( $exc_users ) > count( $users )) {
+           echo "<small class=warn >(Maybe an invalid user?)</small>";
+        }
     }
 
     // ==========================================================
@@ -262,9 +274,10 @@ jQuery(function ($) {
         ?>
     <style>
         .row_mode_cache label { display:inline-block; margin:0 3em 0 0; }
-        label i { font-size: small; display: block; }
+        label i { font-size: small; font-weight: normal; display: block; color: #444; }
         .row_mode_cache label i { display: inline-block; }
-        #acfy-fm .req:after { color: red; content: " *required"; font-size:small; }
+        #acfy-form .req:after { color: red; content: " *required"; font-size:small; }
+        #acfy-form .warn { color: darkorange; }
     </style>
 <?php
     }

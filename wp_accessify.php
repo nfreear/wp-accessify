@@ -34,9 +34,6 @@ define('WP_ACCESSIFY_REGISTER_FILE',
 ));
 
 
-ini_set( 'display_errors', 1 );
-error_reporting( E_ALL );
-
 require_once 'accessify-client-php/accessify_client_php.php';
 require_once 'php/accessify_options_page.php';
 
