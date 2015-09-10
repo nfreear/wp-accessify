@@ -1,0 +1,16 @@
+{
+	"name": "nfreear/wp-accessify",
+	"type": "wordpress-plugin",
+	"description": "Collaboratively improve the accessibility of your WordPress site. [LACE]+",
+	"homepage": "http://accessifywiki.org",
+	"license": "MIT",
+	"minimum-stability": "dev",
+        "time": "2014-04-09",
+	"authors": [ { "name": "Nick Freear" } ],
+	"support": {
+		"source": "https://github.com/nfreear/wp-accessify"
+	},
+	"require": {
+		"composer/installers": "~1.0"
+	}
+}
